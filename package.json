@@ -1,0 +1,17 @@
+{
+  "name": "starlight-cards",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Juego de Cartas Cooperativo 1v1 en Web",
+  "scripts": {
+    "dev": "node dev.js",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ..",
+    "build": "cd backend && npm run build && cd ../frontend && npm run build",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run preview",
+    "typecheck": "cd backend && npm run typecheck && cd ../frontend && npm run typecheck"
+  },
+  "keywords": ["card-game", "typescript", "react", "websocket", "p2p"],
+  "author": "",
+  "license": "MIT"
+}
