@@ -2,6 +2,7 @@
 export interface CardInfo {
   name: string;
   imagePath: string;
+  backImagePath?: string;
   baseAtk: number;
   baseDef: number;
 }

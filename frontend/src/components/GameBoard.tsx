@@ -1,21 +1,43 @@
 import { useGameStore } from "../store/gameStore";
 import { Card as CardType } from "../types";
 
-function CardComponent({ card, onClick }: { card: CardType; onClick: () => void }) {
+function CardComponent({ 
+  card, 
+  onClick, 
+  isVisible = true  // Nuevo parámetro
+}: { 
+  card: CardType; 
+  onClick: () => void;
+  isVisible?: boolean;
+}) {
   const totalAtk = card.stats.baseAtk + card.stats.dynamicAtk + card.stats.fixedAtk;
   const totalDef = card.stats.baseDef + card.stats.dynamicDef + card.stats.fixedDef;
+
+  // Usar getImagePath si existe, si no usar imagePath
+  const imageSrc = card.getImagePath ? card.getImagePath(isVisible) : card.imagePath;
 
   return (
     <div
       onClick={onClick}
-      className="card w-24 h-32 cursor-pointer flex flex-col justify-between p-2 hover:scale-105 transition-transform"
+      className="card w-24 h-32 cursor-pointer flex flex-col justify-between p-2 hover:scale-105 transition-transform relative overflow-hidden"
     >
-      <div className="text-xs font-bold h-8 line-clamp-2">{card.name}</div>
+      {/* Imagen de fondo */}
+      <img 
+        src={imageSrc} 
+        alt={isVisible ? card.name : "Card Back"} 
+        className="absolute inset-0 w-full h-full object-cover"
+      />
 
-      <div className="flex justify-between text-xs font-bold">
-        <div className="text-red-400">ATK: {totalAtk}</div>
-        <div className="text-blue-400">DEF: {totalDef}</div>
-      </div>
+      {/* Overlay con info (solo si la carta es visible) */}
+      {isVisible && (
+        <div className="relative z-10 bg-black bg-opacity-60 p-1 rounded">
+          <div className="text-xs font-bold line-clamp-2">{card.name}</div>
+          <div className="flex justify-between text-xs font-bold">
+            <div className="text-red-400">ATK: {totalAtk}</div>
+            <div className="text-blue-400">DEF: {totalDef}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -41,7 +63,7 @@ function GameBoard() {
         </div>
       </div>
 
-      {/* Tablero de oponente */}
+      {/* Tablero de oponente - REVERSO */}
       {opponentState && (
         <div className="card p-4 mb-4">
           <div className="flex justify-between items-center mb-2">
@@ -60,7 +82,12 @@ function GameBoard() {
 
           <div className="flex gap-2 flex-wrap">
             {opponentState.battleZone.map((card: CardType) => (
-              <CardComponent key={card.cardId} card={card} onClick={() => {}} />
+              <CardComponent 
+                key={card.cardId} 
+                card={card} 
+                onClick={() => {}}
+                isVisible={false}  {/* Mostrar reverso */}
+              />
             ))}
           </div>
         </div>
@@ -73,7 +100,7 @@ function GameBoard() {
         <div className="text-center text-slate-400">Batalla en progreso...</div>
       </div>
 
-      {/* Mi zona */}
+      {/* Mi zona - FRONTAL */}
       <div className="card p-4">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-bold">{currentPlayerState.name} (Tú)</h3>
@@ -84,7 +111,12 @@ function GameBoard() {
           <h4 className="text-sm font-semibold mb-2">Cartas en Batalla:</h4>
           <div className="flex gap-2 flex-wrap mb-4">
             {currentPlayerState.battleZone.map((card: CardType) => (
-              <CardComponent key={card.cardId} card={card} onClick={() => {}} />
+              <CardComponent 
+                key={card.cardId} 
+                card={card} 
+                onClick={() => {}}
+                isVisible={true}  {/* Mostrar frontal */}
+              />
             ))}
           </div>
           {currentPlayerState.battleZone.length === 0 && (
@@ -102,6 +134,7 @@ function GameBoard() {
                 onClick={() => {
                   console.log("Jugar:", card.name);
                 }}
+                isVisible={true}  {/* Mostrar frontal */}
               />
             ))}
           </div>

@@ -3,6 +3,7 @@ import { CardInfo, CardStats, GamePhase } from "./types";
 export class Card {
   name: string;
   imagePath: string;
+  backImagePath: string;
   cardId: string;
   stats: CardStats;
 
@@ -13,6 +14,7 @@ export class Card {
     this.cardId = cardId;
     this.name = info.name;
     this.imagePath = info.imagePath;
+    this.backImagePath = info.backImagePath || "assets/cards/ilustracion_reverso.png";
     this.stats = {
       baseAtk: info.baseAtk,
       baseDef: info.baseDef,
@@ -21,6 +23,10 @@ export class Card {
       fixedAtk: 0,
       fixedDef: 0,
     };
+  }
+
+  getImagePath(isVisible: boolean): string {
+    return isVisible ? this.imagePath : this.backImagePath;
   }
 
   getTotalAtk(): number {
