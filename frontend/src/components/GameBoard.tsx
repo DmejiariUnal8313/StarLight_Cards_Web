@@ -86,7 +86,7 @@ function GameBoard() {
                 key={card.cardId} 
                 card={card} 
                 onClick={() => {}}
-                isVisible={false}  {/* Mostrar reverso */}
+                isVisible={false} 
               />
             ))}
           </div>
@@ -115,7 +115,7 @@ function GameBoard() {
                 key={card.cardId} 
                 card={card} 
                 onClick={() => {}}
-                isVisible={true}  {/* Mostrar frontal */}
+                isVisible={true}  
               />
             ))}
           </div>
@@ -134,7 +134,7 @@ function GameBoard() {
                 onClick={() => {
                   console.log("Jugar:", card.name);
                 }}
-                isVisible={true}  {/* Mostrar frontal */}
+                isVisible={true}  
               />
             ))}
           </div>
