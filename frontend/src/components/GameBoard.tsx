@@ -5,15 +5,30 @@ import { Card as CardType, GameState, PlayerState } from "../types";
 
 type LocalPlayerId = "p1" | "p2";
 
+const MAX_BATTLE_SLOTS = 5;
+type BattleSlot = CardType | null;
+type LocalPlayerState = Omit<PlayerState, "battleZone"> & { battleZoneSlots: BattleSlot[] };
+
 interface LocalGameState {
   phase: GameState["phase"];
   currentPlayer: LocalPlayerId;
-  players: Record<LocalPlayerId, PlayerState>;
+  players: Record<LocalPlayerId, LocalPlayerState>;
   battleZone: CardType[];
   turn: number;
 }
 
+interface PreviewCardState {
+  card: CardType;
+  isVisible: boolean;
+}
+
 const CARD_BACK_IMAGE = "/cards/ilustracion_reverso.png";
+const PHASE_ORDER: LocalGameState["phase"][] = [
+  "draw_phase",
+  "main_phase",
+  "battle_phase",
+  "end_phase",
+];
 
 function toImageSrc(path: string): string {
   if (path.startsWith("http") || path.startsWith("/")) {
@@ -27,11 +42,15 @@ function CardComponent({
   onClick,
   isVisible = true,
   isSelected = false,
+  onHoverStart,
+  onHoverEnd,
 }: {
   card: CardType;
   onClick: () => void;
   isVisible?: boolean;
   isSelected?: boolean;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
 }) {
   const totalAtk = card.stats.baseAtk + card.stats.dynamicAtk + card.stats.fixedAtk;
   const totalDef = card.stats.baseDef + card.stats.dynamicDef + card.stats.fixedDef;
@@ -40,6 +59,8 @@ function CardComponent({
   return (
     <div
       onClick={onClick}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
       className={`card w-24 h-32 cursor-pointer flex flex-col justify-between p-2 hover:scale-105 transition-transform relative overflow-hidden ${
         isSelected ? "ring-2 ring-yellow-300" : ""
       }`}
@@ -94,7 +115,7 @@ function getDefaultDecks() {
   };
 }
 
-function drawOne(player: PlayerState): PlayerState {
+function drawOneLocal(player: LocalPlayerState): LocalPlayerState {
   if (player.deck.length === 0) {
     return player;
   }
@@ -105,6 +126,14 @@ function drawOne(player: PlayerState): PlayerState {
     hand: [...player.hand, drawn],
     deck: remaining,
   };
+}
+
+function firstEmptySlotIndex(slots: BattleSlot[]): number {
+  return slots.findIndex((slot) => slot === null);
+}
+
+function occupiedCards(slots: BattleSlot[]): CardType[] {
+  return slots.filter((slot): slot is CardType => slot !== null);
 }
 
 function createInitialLocalState(name1: string, name2: string): LocalGameState {
@@ -118,7 +147,7 @@ function createInitialLocalState(name1: string, name2: string): LocalGameState {
         id: "p1",
         name: name1,
         hand: deck1.slice(0, 7),
-        battleZone: [],
+        battleZoneSlots: Array(MAX_BATTLE_SLOTS).fill(null),
         graveyard: [],
         deck: deck1.slice(7),
         lifePoints: 4000,
@@ -127,7 +156,7 @@ function createInitialLocalState(name1: string, name2: string): LocalGameState {
         id: "p2",
         name: name2,
         hand: deck2.slice(0, 7),
-        battleZone: [],
+        battleZoneSlots: Array(MAX_BATTLE_SLOTS).fill(null),
         graveyard: [],
         deck: deck2.slice(7),
         lifePoints: 4000,
@@ -142,6 +171,31 @@ function GameBoard() {
   const { gameState, playerId, gameMode } = useGameStore();
   const [localState, setLocalState] = useState<LocalGameState | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [previewCard, setPreviewCard] = useState<PreviewCardState | null>(null);
+  const [isPreviewPinned, setIsPreviewPinned] = useState(false);
+
+  const showPreview = (card: CardType, isVisible: boolean) => {
+    if (!isPreviewPinned) {
+      setPreviewCard({ card, isVisible });
+    }
+  };
+
+  const hidePreview = () => {
+    if (!isPreviewPinned) {
+      setPreviewCard(null);
+    }
+  };
+
+  const pinPreview = (card: CardType, isVisible: boolean) => {
+    setPreviewCard({ card, isVisible });
+    setIsPreviewPinned(true);
+  };
+
+  const clearPinnedPreview = () => {
+    setIsPreviewPinned(false);
+    setPreviewCard(null);
+  };
 
   useEffect(() => {
     if (gameMode === "local" || gameMode === "ai") {
@@ -153,11 +207,50 @@ function GameBoard() {
 
       setLocalState(createInitialLocalState(player1, player2));
       setSelectedCardId(null);
+      setActionMessage(null);
+      setPreviewCard(null);
+      setIsPreviewPinned(false);
     }
   }, [gameMode]);
 
+  const previewPanel = previewCard ? (
+    <div className="fixed right-4 top-4 z-50 w-64 card p-3 bg-slate-900/95 border border-slate-600">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-sm font-semibold text-slate-200">Vista previa</h4>
+        {isPreviewPinned && (
+          <button
+            className="text-xs text-slate-300 hover:text-white"
+            onClick={clearPinnedPreview}
+            aria-label="Cerrar vista previa"
+          >
+            Cerrar
+          </button>
+        )}
+      </div>
+      <img
+        src={previewCard.isVisible ? toImageSrc(previewCard.card.imagePath) : CARD_BACK_IMAGE}
+        alt={previewCard.isVisible ? previewCard.card.name : "Card Back"}
+        className="w-full h-80 object-cover rounded mb-2"
+      />
+      {previewCard.isVisible ? (
+        <>
+          <div className="text-sm font-bold text-white mb-1">{previewCard.card.name}</div>
+          <div className="text-sm text-slate-200">
+            ATK: {previewCard.card.stats.baseAtk + previewCard.card.stats.dynamicAtk + previewCard.card.stats.fixedAtk}
+          </div>
+          <div className="text-sm text-slate-200">
+            DEF: {previewCard.card.stats.baseDef + previewCard.card.stats.dynamicDef + previewCard.card.stats.fixedDef}
+          </div>
+        </>
+      ) : (
+        <div className="text-sm text-slate-300">Carta oculta</div>
+      )}
+    </div>
+  ) : null;
+
   const currentLocalPlayerId = localState?.currentPlayer ?? "p1";
   const opponentLocalPlayerId: LocalPlayerId = currentLocalPlayerId === "p1" ? "p2" : "p1";
+  const currentPhase = localState?.phase ?? "draw_phase";
 
   const isHumanTurn = useMemo(() => {
     if (gameMode !== "ai") {
@@ -166,29 +259,56 @@ function GameBoard() {
     return currentLocalPlayerId === "p1";
   }, [currentLocalPlayerId, gameMode]);
 
-  const endLocalTurn = () => {
+  const canPlayInMainPhase = isHumanTurn && currentPhase === "main_phase";
+  const canAttackInBattlePhase = isHumanTurn && currentPhase === "battle_phase";
+
+  const advanceLocalPhase = () => {
     setLocalState((prev) => {
       if (!prev) {
         return prev;
       }
 
-      const nextPlayer: LocalPlayerId = prev.currentPlayer === "p1" ? "p2" : "p1";
+      const phaseIndex = PHASE_ORDER.indexOf(prev.phase);
+      const currentPlayer = prev.players[prev.currentPlayer];
+
+      if (prev.phase === "draw_phase") {
+        return {
+          ...prev,
+          phase: "main_phase",
+          players: {
+            ...prev.players,
+            [prev.currentPlayer]: drawOneLocal(currentPlayer),
+          },
+        };
+      }
+
+      if (prev.phase === "end_phase") {
+        const nextPlayer: LocalPlayerId = prev.currentPlayer === "p1" ? "p2" : "p1";
+        return {
+          ...prev,
+          currentPlayer: nextPlayer,
+          turn: prev.turn + 1,
+          phase: "draw_phase",
+        };
+      }
+
       return {
         ...prev,
-        currentPlayer: nextPlayer,
-        turn: prev.turn + 1,
-        players: {
-          ...prev.players,
-          [nextPlayer]: drawOne(prev.players[nextPlayer]),
-        },
+        phase: PHASE_ORDER[Math.min(phaseIndex + 1, PHASE_ORDER.length - 1)],
       };
     });
 
     setSelectedCardId(null);
+    setActionMessage(null);
   };
 
   const playSelectedCard = () => {
     if (!localState || !selectedCardId || !isHumanTurn) {
+      return;
+    }
+
+    if (localState.phase !== "main_phase") {
+      setActionMessage("Solo puedes jugar cartas durante la Main Phase.");
       return;
     }
 
@@ -200,6 +320,15 @@ function GameBoard() {
 
     const selected = player.hand[cardIndex];
     const newHand = player.hand.filter((card) => card.cardId !== selectedCardId);
+    const slotIndex = firstEmptySlotIndex(player.battleZoneSlots);
+
+    if (slotIndex === -1) {
+      setActionMessage(`Campo lleno: maximo ${MAX_BATTLE_SLOTS} cartas en batalla.`);
+      return;
+    }
+
+    const nextSlots = [...player.battleZoneSlots];
+    nextSlots[slotIndex] = selected;
 
     setLocalState({
       ...localState,
@@ -208,12 +337,13 @@ function GameBoard() {
         [currentLocalPlayerId]: {
           ...player,
           hand: newHand,
-          battleZone: [...player.battleZone, selected],
+          battleZoneSlots: nextSlots,
         },
       },
     });
 
     setSelectedCardId(null);
+    setActionMessage(null);
   };
 
   useEffect(() => {
@@ -228,30 +358,60 @@ function GameBoard() {
         }
 
         const aiPlayer = prev.players.p2;
-        const humanPlayer = prev.players.p1;
 
-        const aiHand = [...aiPlayer.hand];
-        const aiBattle = [...aiPlayer.battleZone];
-
-        if (aiHand.length > 0) {
-          const randomIndex = Math.floor(Math.random() * aiHand.length);
-          const [playedCard] = aiHand.splice(randomIndex, 1);
-          aiBattle.push(playedCard);
+        if (prev.phase === "draw_phase") {
+          return {
+            ...prev,
+            phase: "main_phase",
+            players: {
+              ...prev.players,
+              p2: drawOneLocal(aiPlayer),
+            },
+          };
         }
 
-        return {
-          ...prev,
-          currentPlayer: "p1",
-          turn: prev.turn + 1,
-          players: {
-            p1: drawOne(humanPlayer),
-            p2: {
-              ...aiPlayer,
-              hand: aiHand,
-              battleZone: aiBattle,
+        if (prev.phase === "main_phase") {
+          const aiHand = [...aiPlayer.hand];
+          const aiBattleSlots = [...aiPlayer.battleZoneSlots];
+          const slotIndex = firstEmptySlotIndex(aiBattleSlots);
+
+          if (aiHand.length > 0 && slotIndex !== -1) {
+            const randomIndex = Math.floor(Math.random() * aiHand.length);
+            const [playedCard] = aiHand.splice(randomIndex, 1);
+            aiBattleSlots[slotIndex] = playedCard;
+          }
+
+          return {
+            ...prev,
+            phase: "battle_phase",
+            players: {
+              ...prev.players,
+              p2: {
+                ...aiPlayer,
+                hand: aiHand,
+                battleZoneSlots: aiBattleSlots,
+              },
             },
-          },
-        };
+          };
+        }
+
+        if (prev.phase === "battle_phase") {
+          return {
+            ...prev,
+            phase: "end_phase",
+          };
+        }
+
+        if (prev.phase === "end_phase") {
+          return {
+            ...prev,
+            currentPlayer: "p1",
+            turn: prev.turn + 1,
+            phase: "draw_phase",
+          };
+        }
+
+        return prev;
       });
     }, 900);
 
@@ -272,7 +432,8 @@ function GameBoard() {
     }
 
     return (
-      <div className="w-full h-full flex flex-col bg-gradient-to-b from-slate-900 to-slate-800 p-4">
+      <>
+        <div className="w-full h-full flex flex-col bg-gradient-to-b from-slate-900 to-slate-800 p-4">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl font-bold">Turno {gameState.turn}</h2>
@@ -294,7 +455,14 @@ function GameBoard() {
 
             <div className="flex gap-2 flex-wrap">
               {opponentState.battleZone.map((card) => (
-                <CardComponent key={card.cardId} card={card} onClick={() => {}} isVisible={false} />
+                <CardComponent
+                  key={card.cardId}
+                  card={card}
+                  isVisible={false}
+                  onClick={() => pinPreview(card, false)}
+                  onHoverStart={() => showPreview(card, false)}
+                  onHoverEnd={hidePreview}
+                />
               ))}
             </div>
           </div>
@@ -315,7 +483,14 @@ function GameBoard() {
             <h4 className="text-sm font-semibold mb-2">Cartas en Batalla:</h4>
             <div className="flex gap-2 flex-wrap mb-4">
               {currentPlayerState.battleZone.map((card) => (
-                <CardComponent key={card.cardId} card={card} onClick={() => {}} isVisible={true} />
+                <CardComponent
+                  key={card.cardId}
+                  card={card}
+                  isVisible={true}
+                  onClick={() => pinPreview(card, true)}
+                  onHoverStart={() => showPreview(card, true)}
+                  onHoverEnd={hidePreview}
+                />
               ))}
             </div>
           </div>
@@ -324,12 +499,21 @@ function GameBoard() {
             <h4 className="text-sm font-semibold mb-2">Mano ({currentPlayerState.hand.length}):</h4>
             <div className="flex gap-2 flex-wrap">
               {currentPlayerState.hand.map((card) => (
-                <CardComponent key={card.cardId} card={card} onClick={() => {}} isVisible={true} />
+                <CardComponent
+                  key={card.cardId}
+                  card={card}
+                  isVisible={true}
+                  onClick={() => pinPreview(card, true)}
+                  onHoverStart={() => showPreview(card, true)}
+                  onHoverEnd={hidePreview}
+                />
               ))}
             </div>
           </div>
         </div>
       </div>
+      {previewPanel}
+      </>
     );
   }
 
@@ -339,9 +523,12 @@ function GameBoard() {
 
   const currentPlayerState = localState.players[currentLocalPlayerId];
   const opponentState = localState.players[opponentLocalPlayerId];
+  const currentBattleCards = occupiedCards(currentPlayerState.battleZoneSlots);
+  const nextPhaseLabel = currentPhase === "end_phase" ? "Finalizar Turno" : "Siguiente Fase";
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-to-b from-slate-900 to-slate-800 p-4">
+    <>
+      <div className="w-full h-full flex flex-col bg-gradient-to-b from-slate-900 to-slate-800 p-4">
       <div className="flex justify-between items-center mb-4">
         <div>
           <h2 className="text-xl font-bold">Turno {localState.turn}</h2>
@@ -350,6 +537,7 @@ function GameBoard() {
             Juega: {currentPlayerState.name}
             {gameMode === "ai" && !isHumanTurn ? " (IA)" : ""}
           </p>
+          <p className="text-xs text-slate-400">Fase activa: {currentPhase.replace("_", " ")}</p>
         </div>
       </div>
 
@@ -363,9 +551,24 @@ function GameBoard() {
           <span className="text-xs text-slate-400">📋 Mano: {opponentState.hand.length} cartas</span>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {opponentState.battleZone.map((card) => (
-            <CardComponent key={card.cardId} card={card} onClick={() => {}} isVisible={false} />
-          ))}
+          {opponentState.battleZoneSlots.map((card, index) =>
+            card ? (
+              <CardComponent
+                key={card.cardId}
+                card={card}
+                isVisible={false}
+                onClick={() => pinPreview(card, false)}
+                onHoverStart={() => showPreview(card, false)}
+                onHoverEnd={hidePreview}
+              />
+            ) : (
+              <div
+                key={`op-slot-${index}`}
+                className="card w-24 h-32 border border-dashed border-slate-600 opacity-60"
+                aria-label={`Slot oponente ${index + 1} vacio`}
+              />
+            )
+          )}
         </div>
       </div>
 
@@ -381,16 +584,39 @@ function GameBoard() {
         </div>
 
         <div className="mb-4">
-          <h4 className="text-sm font-semibold mb-2">Cartas en Batalla:</h4>
+          <h4 className="text-sm font-semibold mb-2">
+            Cartas en Batalla ({currentBattleCards.length}/{MAX_BATTLE_SLOTS}):
+          </h4>
           <div className="flex gap-2 flex-wrap mb-4">
-            {currentPlayerState.battleZone.map((card) => (
-              <CardComponent key={card.cardId} card={card} onClick={() => {}} isVisible={true} />
-            ))}
+            {currentPlayerState.battleZoneSlots.map((card, index) =>
+              card ? (
+                <CardComponent
+                  key={card.cardId}
+                  card={card}
+                  isVisible={true}
+                  onClick={() => pinPreview(card, true)}
+                  onHoverStart={() => showPreview(card, true)}
+                  onHoverEnd={hidePreview}
+                />
+              ) : (
+                <div
+                  key={`me-slot-${index}`}
+                  className="card w-24 h-32 border border-dashed border-slate-600 opacity-60"
+                  aria-label={`Tu slot ${index + 1} vacio`}
+                />
+              )
+            )}
           </div>
-          {currentPlayerState.battleZone.length === 0 && (
+          {currentBattleCards.length === 0 && (
             <p className="text-xs text-slate-400">Sin cartas en combate</p>
           )}
         </div>
+
+        {actionMessage && <p className="text-sm text-amber-300 mb-2">{actionMessage}</p>}
+
+        {!isHumanTurn && gameMode === "ai" && (
+          <p className="text-sm text-indigo-300 mb-2">La IA esta resolviendo su fase...</p>
+        )}
 
         <div>
           <h4 className="text-sm font-semibold mb-2">Mano ({currentPlayerState.hand.length}):</h4>
@@ -402,29 +628,34 @@ function GameBoard() {
                 isVisible={true}
                 isSelected={selectedCardId === card.cardId}
                 onClick={() => {
+                  pinPreview(card, true);
                   if (!isHumanTurn) {
                     return;
                   }
                   setSelectedCardId((prev) => (prev === card.cardId ? null : card.cardId));
                 }}
+                onHoverStart={() => showPreview(card, true)}
+                onHoverEnd={hidePreview}
               />
             ))}
           </div>
         </div>
 
         <div className="flex gap-2 mt-4">
-          <button className="btn flex-1" onClick={playSelectedCard} disabled={!selectedCardId || !isHumanTurn}>
+          <button className="btn flex-1" onClick={playSelectedCard} disabled={!selectedCardId || !canPlayInMainPhase}>
             📤 Jugar Carta
           </button>
-          <button className="btn flex-1" disabled>
+          <button className="btn flex-1" disabled={!canAttackInBattlePhase}>
             ⚔️ Atacar (pronto)
           </button>
-          <button className="btn flex-1" onClick={endLocalTurn} disabled={!isHumanTurn}>
-            ➡️ Terminar Turno
+          <button className="btn flex-1" onClick={advanceLocalPhase} disabled={!isHumanTurn}>
+            ➡️ {nextPhaseLabel}
           </button>
         </div>
       </div>
     </div>
+    {previewPanel}
+    </>
   );
 }
 
