@@ -13,6 +13,8 @@ interface LocalGameState {
   turn: number;
 }
 
+const CARD_BACK_IMAGE = "/cards/ilustracion_reverso.png";
+
 function toImageSrc(path: string): string {
   if (path.startsWith("http") || path.startsWith("/")) {
     return path;
@@ -33,6 +35,7 @@ function CardComponent({
 }) {
   const totalAtk = card.stats.baseAtk + card.stats.dynamicAtk + card.stats.fixedAtk;
   const totalDef = card.stats.baseDef + card.stats.dynamicDef + card.stats.fixedDef;
+  const imageSrc = isVisible ? toImageSrc(card.imagePath) : CARD_BACK_IMAGE;
 
   return (
     <div
@@ -42,7 +45,7 @@ function CardComponent({
       }`}
     >
       <img
-        src={toImageSrc(card.imagePath)}
+        src={imageSrc}
         alt={isVisible ? card.name : "Card Back"}
         className="absolute inset-0 w-full h-full object-cover"
       />
