@@ -1,11 +1,15 @@
+
 import { useState } from "react";
 import { useGameStore } from "../store/gameStore";
 
 function MainMenu() {
-  const { playerId } = useGameStore();
+  const { playerId, setGameMode } = useGameStore();
   const [playerName, setPlayerName] = useState("");
+  const [player2Name, setPlayer2Name] = useState("");
 
-  const handleJoin = () => {
+  const handleJoinOnline = () => {
+    setGameMode("online");
+
     const ws = new WebSocket("ws://localhost:8080");
     ws.onopen = () => {
       ws.send(
@@ -16,6 +20,18 @@ function MainMenu() {
         })
       );
     };
+  };
+
+  const handleLocal = () => {
+    window.localStorage.setItem("localPlayer1Name", playerName || "Jugador 1");
+    window.localStorage.setItem("localPlayer2Name", player2Name || "Jugador 2");
+    setGameMode("local");
+  };
+
+  const handleAI = () => {
+    window.localStorage.setItem("localPlayer1Name", playerName || "Jugador 1");
+    window.localStorage.setItem("localPlayer2Name", "IA");
+    setGameMode("ai");
   };
 
   return (
@@ -29,19 +45,31 @@ function MainMenu() {
         <div className="space-y-4">
           <input
             type="text"
-            placeholder="Tu nombre"
+            placeholder="Nombre Jugador 1"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
             className="w-full px-4 py-2 bg-slate-800 text-white border border-slate-600 rounded-lg focus:border-indigo-500 focus:outline-none"
           />
 
-          <button onClick={handleJoin} className="btn w-full">
-            🎮 Buscar Partida
+          <input
+            type="text"
+            placeholder="Nombre Jugador 2 (local)"
+            value={player2Name}
+            onChange={(e) => setPlayer2Name(e.target.value)}
+            className="w-full px-4 py-2 bg-slate-800 text-white border border-slate-600 rounded-lg focus:border-indigo-500 focus:outline-none"
+          />
+
+          <button onClick={handleJoinOnline} className="btn w-full">
+            🎮 Buscar Partida Online
           </button>
 
-          <div className="text-center text-sm text-slate-400">
-            <p>Esperando a otro jugador...</p>
-          </div>
+          <button onClick={handleLocal} className="btn w-full">
+            🧑‍🤝‍🧑 Jugar Local 1v1
+          </button>
+
+          <button onClick={handleAI} className="btn w-full">
+            🤖 Jugar contra IA
+          </button>
         </div>
       </div>
     </div>

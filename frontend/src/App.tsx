@@ -1,13 +1,11 @@
 import { useEffect } from "react";
 import { useGameStore } from "./store/gameStore";
-import { useWebSocketStore } from "./store/wsStore";
 import { GameMessage } from "./types";
 import MainMenu from "./components/MainMenu";
 import GameBoard from "./components/GameBoard";
 
 function App() {
-  const { gameState, connected, setConnected } = useGameStore();
-  const { connect, send } = useWebSocketStore();
+  const { gameState, connected, setConnected, gameMode } = useGameStore();
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8080");
@@ -69,8 +67,8 @@ function App() {
         </div>
       )}
 
-      {connected && !gameState && <MainMenu />}
-      {connected && gameState && <GameBoard />}
+      {connected && gameMode === "online" && !gameState && <MainMenu />}
+      {connected && (gameMode !== "online" || gameState) && <GameBoard />}
     </div>
   );
 }
